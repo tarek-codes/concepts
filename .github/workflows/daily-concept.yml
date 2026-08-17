@@ -5,7 +5,6 @@ on:
     - cron: '30 15 * * *'
       timezone: 'Asia/Dhaka'
 
-  # Allows you to manually run the workflow from GitHub Actions
   workflow_dispatch:
 
 permissions:
@@ -16,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       # --------------------------------------------------
       # 1. Checkout repository
       # --------------------------------------------------
@@ -34,33 +34,163 @@ jobs:
           python <<'PY'
           import os
           import json
+          import time
           import urllib.request
           import urllib.error
 
-          concepts_file = "concepts.md"
+          GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-          # -----------------------------------------------
+          if not GROQ_API_KEY:
+              raise RuntimeError(
+                  "GROQ_API_KEY GitHub secret is not configured."
+              )
+
+          CONCEPTS_FILE = "concepts.md"
+
+          # --------------------------------------------------
+          # Preferred models
+          #
+          # The workflow automatically chooses the first
+          # model that is available to the API key.
+          # --------------------------------------------------
+          PREFERRED_MODELS = [
+              "qwen/qwen3.6-27b",
+              "llama-3.3-70b-versatile",
+              "llama-3.1-8b-instant",
+          ]
+
+          API_URL = "https://api.groq.com/openai/v1/chat/completions"
+          MODELS_URL = "https://api.groq.com/openai/v1/models"
+
+          # --------------------------------------------------
+          # Helper: authenticated GET request
+          # --------------------------------------------------
+          def get_json(url):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Authorization": f"Bearer {GROQ_API_KEY}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "github-actions-daily-cs-concept",
+                  },
+                  method="GET",
+              )
+
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+          # --------------------------------------------------
+          # Find an available model
+          # --------------------------------------------------
+          print("Checking available Groq models...")
+
+          try:
+              models_response = get_json(MODELS_URL)
+
+              available_models = {
+                  model.get("id")
+                  for model in models_response.get("data", [])
+              }
+
+          except urllib.error.HTTPError as e:
+              body = e.read().decode("utf-8", errors="replace")
+
+              print("Could not access Groq model list.")
+              print(f"HTTP {e.code}")
+              print(body)
+
+              raise RuntimeError(
+                  "Groq API authentication/permission failed. "
+                  "Check the GROQ_API_KEY GitHub secret."
+              )
+
+          print("Available preferred models:")
+
+          selected_model = None
+
+          for model in PREFERRED_MODELS:
+              if model in available_models:
+                  selected_model = model
+                  print(f"  ✓ {model}")
+                  break
+              else:
+                  print(f"  ✗ {model}")
+
+          if not selected_model:
+              raise RuntimeError(
+                  "None of the configured Groq models are available "
+                  "for this API key."
+              )
+
+          print()
+          print(f"Using Groq model: {selected_model}")
+
+          # --------------------------------------------------
           # Read existing concepts
-          # -----------------------------------------------
-          with open(concepts_file, "r", encoding="utf-8") as f:
+          # --------------------------------------------------
+          if not os.path.exists(CONCEPTS_FILE):
+              open(
+                  CONCEPTS_FILE,
+                  "w",
+                  encoding="utf-8"
+              ).close()
+
+          with open(
+              CONCEPTS_FILE,
+              "r",
+              encoding="utf-8"
+          ) as f:
               existing = f.read()
 
-          # -----------------------------------------------
-          # Prompt Groq
-          # -----------------------------------------------
+          # --------------------------------------------------
+          # Extract existing headings only
+          #
+          # This prevents the prompt from growing massively
+          # as concepts.md gets larger.
+          # --------------------------------------------------
+          existing_titles = []
+
+          for line in existing.splitlines():
+              stripped = line.strip()
+
+              if stripped.startswith("#"):
+                  title = stripped.lstrip("#").strip()
+
+                  if title:
+                      existing_titles.append(title)
+
+          existing_titles_text = "\n".join(
+              f"- {title}"
+              for title in existing_titles
+          )
+
+          if not existing_titles_text:
+              existing_titles_text = "- No concepts yet."
+
+          print()
+          print(
+              f"Existing concept headings: "
+              f"{len(existing_titles)}"
+          )
+
+          # --------------------------------------------------
+          # Prompt
+          # --------------------------------------------------
           prompt = f"""
           You maintain a personal Computer Science concepts repository.
 
-          Your task is to generate EXACTLY ONE new Computer Science concept
-          that is NOT already covered in the existing concepts below.
+          Generate EXACTLY ONE new Computer Science concept that is
+          NOT already covered by the existing concept titles.
 
           Requirements:
 
           1. Generate exactly ONE concept.
-          2. Do NOT generate a concept that already exists.
-          3. The concept should be useful for a Computer Science student
-             and software engineer.
-          4. Prefer concepts from:
+          2. Do NOT duplicate an existing concept.
+          3. The concept must be useful for Computer Science students
+             and software engineers.
+          4. Prefer topics from:
              - Data Structures
              - Algorithms
              - Operating Systems
@@ -78,113 +208,251 @@ jobs:
              - DevOps
 
           5. Explain the concept clearly and practically.
-          6. Keep the explanation concise but informative.
-          7. Include a practical example when appropriate.
-          8. Use Markdown.
-          9. Start with an H2 heading.
-          10. Do NOT include an introduction such as:
-              "Here is today's concept".
-          11. Do NOT include any commentary outside the concept.
-          12. Return ONLY the new concept.
+          6. Keep it concise but informative.
+          7. Include a practical example when useful.
+          8. The content must be Markdown.
+          9. The title should be suitable for an H2 heading.
+          10. Do not include an introduction.
+          11. Do not include commentary outside the concept.
+          12. Return ONLY valid JSON in this exact format:
+
+          {{
+            "title": "Concept Title",
+            "content": "Markdown explanation of the concept"
+          }}
 
           Existing concepts:
-          ===================
 
-          {existing}
+          {existing_titles_text}
           """
 
-          # -----------------------------------------------
-          # Groq API request
-          # -----------------------------------------------
+          # --------------------------------------------------
+          # Groq request
+          # --------------------------------------------------
           payload = {
-              "model": "qwen/qwen3.6-27b",
+              "model": selected_model,
               "messages": [
                   {
                       "role": "system",
                       "content": (
                           "You are an expert Computer Science educator "
-                          "and software engineer. Explain technical concepts "
-                          "accurately, clearly, and practically."
-                      )
+                          "and software engineer. "
+                          "Return only valid JSON."
+                      ),
                   },
                   {
                       "role": "user",
-                      "content": prompt
-                  }
+                      "content": prompt,
+                  },
               ],
-              "temperature": 0.7
+              "temperature": 0.7,
+              "max_completion_tokens": 1500,
+              "response_format": {
+                  "type": "json_object"
+              },
           }
 
           data = json.dumps(payload).encode("utf-8")
 
           request = urllib.request.Request(
-              "https://api.groq.com/openai/v1/chat/completions",
+              API_URL,
               data=data,
               headers={
                   "Content-Type": "application/json",
-                  "Authorization": (
-                      f"Bearer {os.environ['GROQ_API_KEY']}"
-                  )
+                  "Authorization": f"Bearer {GROQ_API_KEY}",
+                  "User-Agent": "github-actions-daily-cs-concept",
               },
-              method="POST"
+              method="POST",
           )
 
-          # -----------------------------------------------
-          # Call API
-          # -----------------------------------------------
-          try:
-              with urllib.request.urlopen(request) as response:
-                  result = json.loads(
-                      response.read().decode("utf-8")
+          # --------------------------------------------------
+          # API call with retry
+          # --------------------------------------------------
+          result = None
+
+          for attempt in range(3):
+
+              try:
+                  print(
+                      f"Calling Groq "
+                      f"(attempt {attempt + 1}/3)..."
                   )
 
-          except urllib.error.HTTPError as e:
-              error_body = e.read().decode("utf-8")
-              print("Groq API request failed:")
-              print(error_body)
-              raise
+                  with urllib.request.urlopen(
+                      request,
+                      timeout=120
+                  ) as response:
 
-          # -----------------------------------------------
-          # Extract generated concept
-          # -----------------------------------------------
+                      result = json.loads(
+                          response.read().decode("utf-8")
+                      )
+
+                  break
+
+              except urllib.error.HTTPError as e:
+
+                  body = e.read().decode(
+                      "utf-8",
+                      errors="replace"
+                  )
+
+                  print(
+                      f"Groq returned HTTP {e.code}:"
+                  )
+                  print(body)
+
+                  # 403 is a permission problem and retrying
+                  # will not fix it.
+                  if e.code == 403:
+                      raise RuntimeError(
+                          "Groq returned HTTP 403. "
+                          "The selected model is not permitted "
+                          "for this API key/project."
+                      )
+
+                  # Retry temporary errors.
+                  if e.code in (429, 500, 502, 503, 504):
+                      if attempt < 2:
+                          wait = 5 * (attempt + 1)
+
+                          print(
+                              f"Retrying in {wait} seconds..."
+                          )
+
+                          time.sleep(wait)
+                          continue
+
+                  raise
+
+              except Exception as e:
+
+                  print(
+                      f"Request failed: {type(e).__name__}: {e}"
+                  )
+
+                  if attempt < 2:
+                      wait = 5 * (attempt + 1)
+
+                      print(
+                          f"Retrying in {wait} seconds..."
+                      )
+
+                      time.sleep(wait)
+                      continue
+
+                  raise
+
+          if result is None:
+              raise RuntimeError(
+                  "Groq did not return a response."
+              )
+
+          # --------------------------------------------------
+          # Extract response
+          # --------------------------------------------------
           try:
-              concept = (
+              raw_content = (
                   result["choices"][0]["message"]["content"]
-                  .strip()
-              )
-          except (KeyError, IndexError, TypeError):
-              print("Unexpected API response:")
-              print(json.dumps(result, indent=2))
-              raise RuntimeError(
-                  "Could not extract concept from Groq response."
               )
 
-          # -----------------------------------------------
-          # Validate response
-          # -----------------------------------------------
-          if not concept:
-              raise RuntimeError(
-                  "Groq returned an empty concept."
+          except (
+              KeyError,
+              IndexError,
+              TypeError
+          ):
+              print(
+                  json.dumps(
+                      result,
+                      indent=2
+                  )
               )
 
-          if not concept.startswith("#"):
               raise RuntimeError(
-                  "Generated concept does not start with a Markdown heading."
+                  "Unexpected Groq API response."
               )
 
-          # -----------------------------------------------
-          # Append concept to concepts.md
-          # -----------------------------------------------
-          with open(concepts_file, "a", encoding="utf-8") as f:
+          if not raw_content:
+              raise RuntimeError(
+                  "Groq returned an empty response."
+              )
+
+          # --------------------------------------------------
+          # Parse JSON
+          # --------------------------------------------------
+          try:
+              generated = json.loads(
+                  raw_content
+              )
+
+          except json.JSONDecodeError:
+              print("Groq returned invalid JSON:")
+              print(raw_content)
+
+              raise RuntimeError(
+                  "Could not parse Groq response as JSON."
+              )
+
+          title = str(
+              generated.get("title", "")
+          ).strip()
+
+          content = str(
+              generated.get("content", "")
+          ).strip()
+
+          if not title:
+              raise RuntimeError(
+                  "Generated concept has no title."
+              )
+
+          if not content:
+              raise RuntimeError(
+                  "Generated concept has no content."
+              )
+
+          # --------------------------------------------------
+          # Duplicate protection
+          # --------------------------------------------------
+          existing_lower = {
+              title.strip().lower()
+              for title in existing_titles
+          }
+
+          if title.lower() in existing_lower:
+              raise RuntimeError(
+                  f"Duplicate concept generated: {title}"
+              )
+
+          # --------------------------------------------------
+          # Build Markdown
+          # --------------------------------------------------
+          concept = (
+              f"## {title}\n\n"
+              f"{content}\n"
+          )
+
+          # --------------------------------------------------
+          # Append concept
+          # --------------------------------------------------
+          with open(
+              CONCEPTS_FILE,
+              "a",
+              encoding="utf-8"
+          ) as f:
+
               f.write("\n\n---\n\n")
               f.write(concept)
-              f.write("\n")
 
+          print()
           print("========================================")
-          print("Generated CS Concept:")
+          print("Generated CS Concept")
           print("========================================")
           print(concept)
           print("========================================")
+          print()
+          print(
+              f"Model used: {selected_model}"
+          )
 
           PY
 
