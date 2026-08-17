@@ -1,0 +1,208 @@
+name: Daily CS Concept
+
+on:
+  schedule:
+    - cron: '30 15 * * *'
+      timezone: 'Asia/Dhaka'
+
+  # Allows you to manually run the workflow from GitHub Actions
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-concept:
+    runs-on: ubuntu-latest
+
+    steps:
+      # --------------------------------------------------
+      # 1. Checkout repository
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # --------------------------------------------------
+      # 2. Generate concept using Groq
+      # --------------------------------------------------
+      - name: Generate new concept with Groq
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python <<'PY'
+          import os
+          import json
+          import urllib.request
+          import urllib.error
+
+          concepts_file = "concepts.md"
+
+          # -----------------------------------------------
+          # Read existing concepts
+          # -----------------------------------------------
+          with open(concepts_file, "r", encoding="utf-8") as f:
+              existing = f.read()
+
+          # -----------------------------------------------
+          # Prompt Groq
+          # -----------------------------------------------
+          prompt = f"""
+          You maintain a personal Computer Science concepts repository.
+
+          Your task is to generate EXACTLY ONE new Computer Science concept
+          that is NOT already covered in the existing concepts below.
+
+          Requirements:
+
+          1. Generate exactly ONE concept.
+          2. Do NOT generate a concept that already exists.
+          3. The concept should be useful for a Computer Science student
+             and software engineer.
+          4. Prefer concepts from:
+             - Data Structures
+             - Algorithms
+             - Operating Systems
+             - Computer Networks
+             - Databases
+             - Distributed Systems
+             - System Design
+             - Software Engineering
+             - Cybersecurity
+             - Artificial Intelligence
+             - Machine Learning
+             - Programming Languages
+             - Computer Architecture
+             - Cloud Computing
+             - DevOps
+
+          5. Explain the concept clearly and practically.
+          6. Keep the explanation concise but informative.
+          7. Include a practical example when appropriate.
+          8. Use Markdown.
+          9. Start with an H2 heading.
+          10. Do NOT include an introduction such as:
+              "Here is today's concept".
+          11. Do NOT include any commentary outside the concept.
+          12. Return ONLY the new concept.
+
+          Existing concepts:
+          ===================
+
+          {existing}
+          """
+
+          # -----------------------------------------------
+          # Groq API request
+          # -----------------------------------------------
+          payload = {
+              "model": "qwen/qwen3.6-27b",
+              "messages": [
+                  {
+                      "role": "system",
+                      "content": (
+                          "You are an expert Computer Science educator "
+                          "and software engineer. Explain technical concepts "
+                          "accurately, clearly, and practically."
+                      )
+                  },
+                  {
+                      "role": "user",
+                      "content": prompt
+                  }
+              ],
+              "temperature": 0.7
+          }
+
+          data = json.dumps(payload).encode("utf-8")
+
+          request = urllib.request.Request(
+              "https://api.groq.com/openai/v1/chat/completions",
+              data=data,
+              headers={
+                  "Content-Type": "application/json",
+                  "Authorization": (
+                      f"Bearer {os.environ['GROQ_API_KEY']}"
+                  )
+              },
+              method="POST"
+          )
+
+          # -----------------------------------------------
+          # Call API
+          # -----------------------------------------------
+          try:
+              with urllib.request.urlopen(request) as response:
+                  result = json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+          except urllib.error.HTTPError as e:
+              error_body = e.read().decode("utf-8")
+              print("Groq API request failed:")
+              print(error_body)
+              raise
+
+          # -----------------------------------------------
+          # Extract generated concept
+          # -----------------------------------------------
+          try:
+              concept = (
+                  result["choices"][0]["message"]["content"]
+                  .strip()
+              )
+          except (KeyError, IndexError, TypeError):
+              print("Unexpected API response:")
+              print(json.dumps(result, indent=2))
+              raise RuntimeError(
+                  "Could not extract concept from Groq response."
+              )
+
+          # -----------------------------------------------
+          # Validate response
+          # -----------------------------------------------
+          if not concept:
+              raise RuntimeError(
+                  "Groq returned an empty concept."
+              )
+
+          if not concept.startswith("#"):
+              raise RuntimeError(
+                  "Generated concept does not start with a Markdown heading."
+              )
+
+          # -----------------------------------------------
+          # Append concept to concepts.md
+          # -----------------------------------------------
+          with open(concepts_file, "a", encoding="utf-8") as f:
+              f.write("\n\n---\n\n")
+              f.write(concept)
+              f.write("\n")
+
+          print("========================================")
+          print("Generated CS Concept:")
+          print("========================================")
+          print(concept)
+          print("========================================")
+
+          PY
+
+      # --------------------------------------------------
+      # 3. Commit generated concept
+      # --------------------------------------------------
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add concepts.md
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            exit 0
+          fi
+
+          git commit -m "docs: add daily CS concept"
+
+          git push
