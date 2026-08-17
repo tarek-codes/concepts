@@ -33,7 +33,6 @@ jobs:
         run: |
           python <<'PY'
           import os
-          import re
           import json
           import time
           import urllib.request
@@ -51,8 +50,6 @@ jobs:
           API_URL = "https://api.groq.com/openai/v1/chat/completions"
           MODELS_URL = "https://api.groq.com/openai/v1/models"
 
-          # Preferred models.
-          # The workflow automatically selects the first available one.
           PREFERRED_MODELS = [
               "qwen/qwen3.6-27b",
               "llama-3.3-70b-versatile",
@@ -82,7 +79,7 @@ jobs:
                   )
 
           # --------------------------------------------------
-          # Find available Groq model
+          # Check available models
           # --------------------------------------------------
           print("Checking available Groq models...")
 
@@ -116,7 +113,6 @@ jobs:
           for model in PREFERRED_MODELS:
               if model in available_models:
                   print(f"  ✓ {model}")
-
                   selected_model = model
                   break
 
@@ -219,22 +215,19 @@ jobs:
           4. Explain it clearly and practically.
           5. Keep the explanation concise but informative.
           6. Include a practical example when appropriate.
-          7. The content must use Markdown.
+          7. Use Markdown.
           8. Do not include an introduction.
           9. Do not include commentary outside the concept.
           10. Do not use code fences around the entire response.
 
           IMPORTANT OUTPUT FORMAT:
 
-          Return ONLY the following format:
-
           TITLE: Concept Title
 
           CONTENT:
           Markdown explanation of the concept.
 
-          Do not add anything before TITLE.
-          Do not add anything after the CONTENT.
+          Return ONLY this format.
 
           Existing concepts:
           ==================
@@ -244,39 +237,33 @@ jobs:
 
           # --------------------------------------------------
           # API payload
-          #
-          # IMPORTANT:
-          # No response_format/json_object here.
-          #
-          # This avoids the JSON validation problem with
-          # Qwen reasoning mode.
           # --------------------------------------------------
           payload = {
               "model": selected_model,
 
               "messages": [
                   {
+                      "role": "system",
+                      "content": (
+                          "You are an expert Computer Science educator "
+                          "and software engineer. "
+                          "Follow the requested output format exactly."
+                      ),
+                  },
+                  {
                       "role": "user",
                       "content": prompt,
-                  }
+                  },
               ],
 
               "temperature": 0.7,
-
               "max_completion_tokens": 1800,
-
-              # Qwen 3.6 supports disabling reasoning.
-              # This makes the response cleaner and faster.
               "reasoning_effort": "none",
-
               "stream": False,
           }
 
           data = json.dumps(payload).encode("utf-8")
 
-          # --------------------------------------------------
-          # API request
-          # --------------------------------------------------
           request = urllib.request.Request(
               API_URL,
               data=data,
@@ -288,11 +275,11 @@ jobs:
               method="POST",
           )
 
+          # --------------------------------------------------
+          # Call Groq with retries
+          # --------------------------------------------------
           result = None
 
-          # --------------------------------------------------
-          # Retry temporary failures
-          # --------------------------------------------------
           for attempt in range(3):
 
               try:
@@ -325,7 +312,6 @@ jobs:
                   )
                   print(body)
 
-                  # Don't retry permission/auth errors.
                   if e.code in (400, 401, 403):
 
                       raise RuntimeError(
@@ -333,7 +319,6 @@ jobs:
                           f"{e.code}."
                       )
 
-                  # Retry rate limits and temporary server errors.
                   if e.code in (
                       429,
                       500,
@@ -378,13 +363,12 @@ jobs:
                   raise
 
           if result is None:
-
               raise RuntimeError(
                   "Groq did not return a response."
               )
 
           # --------------------------------------------------
-          # Extract response text
+          # Extract generated text
           # --------------------------------------------------
           try:
 
@@ -424,45 +408,86 @@ jobs:
           print()
 
           # --------------------------------------------------
-          # Extract TITLE
+          # Parse TITLE and CONTENT
+          #
+          # Do NOT use regex here.
+          # Everything after CONTENT: is valid Markdown.
           # --------------------------------------------------
-          title_match = re.search(
-              r"(?im)^TITLE:\s*(.+?)\s*$",
-              response_text
-          )
+          lines = response_text.splitlines()
 
-          if not title_match:
+          title = None
+          content_start = None
+
+          for index, line in enumerate(lines):
+
+              stripped = line.strip()
+
+              if stripped.upper().startswith("TITLE:"):
+
+                  title = stripped[
+                      len("TITLE:"):
+                  ].strip()
+
+              if stripped.upper() == "CONTENT:" or \
+                 stripped.upper().startswith("CONTENT:"):
+
+                  content_start = index
+
+                  # Handles:
+                  # CONTENT:
+                  #
+                  # or:
+                  # CONTENT: some text
+                  break
+
+          if not title:
 
               raise RuntimeError(
                   "Could not find TITLE in Groq response."
               )
 
-          title = title_match.group(1).strip()
-
-          # --------------------------------------------------
-          # Extract CONTENT
-          # --------------------------------------------------
-          content_match = re.search(
-              r"(?is)^CONTENT:\s*(.+?)\s*$",
-              response_text
-          )
-
-          if not content_match:
+          if content_start is None:
 
               raise RuntimeError(
                   "Could not find CONTENT in Groq response."
               )
 
-          content = content_match.group(1).strip()
+          # --------------------------------------------------
+          # Extract everything after CONTENT:
+          # --------------------------------------------------
+          content_line = lines[content_start]
+
+          if content_line.upper().startswith("CONTENT:"):
+
+              first_content = content_line[
+                  len("CONTENT:"):
+              ].strip()
+
+          else:
+
+              first_content = ""
+
+          remaining_content = lines[
+              content_start + 1:
+          ]
+
+          content_parts = []
+
+          if first_content:
+              content_parts.append(first_content)
+
+          content_parts.extend(
+              remaining_content
+          )
+
+          content = "\n".join(
+              content_parts
+          ).strip()
 
           # --------------------------------------------------
-          # Clean accidental heading
+          # Clean accidental Markdown heading
           # --------------------------------------------------
-          title = re.sub(
-              r"^#+\s*",
-              "",
-              title
-          ).strip()
+          title = title.lstrip("#").strip()
 
           # --------------------------------------------------
           # Validate
@@ -502,7 +527,7 @@ jobs:
           )
 
           # --------------------------------------------------
-          # Append to concepts.md
+          # Append concept
           # --------------------------------------------------
           with open(
               CONCEPTS_FILE,
@@ -519,7 +544,9 @@ jobs:
           print(concept)
           print("========================================")
           print()
-          print(f"Model used: {selected_model}")
+          print(
+              f"Model used: {selected_model}"
+          )
 
           PY
 
