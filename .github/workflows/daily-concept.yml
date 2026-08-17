@@ -33,6 +33,7 @@ jobs:
         run: |
           python <<'PY'
           import os
+          import re
           import json
           import time
           import urllib.request
@@ -47,23 +48,19 @@ jobs:
 
           CONCEPTS_FILE = "concepts.md"
 
-          # --------------------------------------------------
-          # Preferred models
-          #
-          # The workflow automatically chooses the first
-          # model that is available to the API key.
-          # --------------------------------------------------
+          API_URL = "https://api.groq.com/openai/v1/chat/completions"
+          MODELS_URL = "https://api.groq.com/openai/v1/models"
+
+          # Preferred models.
+          # The workflow automatically selects the first available one.
           PREFERRED_MODELS = [
               "qwen/qwen3.6-27b",
               "llama-3.3-70b-versatile",
               "llama-3.1-8b-instant",
           ]
 
-          API_URL = "https://api.groq.com/openai/v1/chat/completions"
-          MODELS_URL = "https://api.groq.com/openai/v1/models"
-
           # --------------------------------------------------
-          # Helper: authenticated GET request
+          # Helper: GET JSON
           # --------------------------------------------------
           def get_json(url):
               request = urllib.request.Request(
@@ -76,13 +73,16 @@ jobs:
                   method="GET",
               )
 
-              with urllib.request.urlopen(request, timeout=30) as response:
+              with urllib.request.urlopen(
+                  request,
+                  timeout=30
+              ) as response:
                   return json.loads(
                       response.read().decode("utf-8")
                   )
 
           # --------------------------------------------------
-          # Find an available model
+          # Find available Groq model
           # --------------------------------------------------
           print("Checking available Groq models...")
 
@@ -95,15 +95,18 @@ jobs:
               }
 
           except urllib.error.HTTPError as e:
-              body = e.read().decode("utf-8", errors="replace")
+              body = e.read().decode(
+                  "utf-8",
+                  errors="replace"
+              )
 
               print("Could not access Groq model list.")
               print(f"HTTP {e.code}")
               print(body)
 
               raise RuntimeError(
-                  "Groq API authentication/permission failed. "
-                  "Check the GROQ_API_KEY GitHub secret."
+                  "Groq API authentication failed. "
+                  "Check GROQ_API_KEY."
               )
 
           print("Available preferred models:")
@@ -112,30 +115,32 @@ jobs:
 
           for model in PREFERRED_MODELS:
               if model in available_models:
-                  selected_model = model
                   print(f"  ✓ {model}")
+
+                  selected_model = model
                   break
-              else:
-                  print(f"  ✗ {model}")
+
+              print(f"  ✗ {model}")
 
           if not selected_model:
               raise RuntimeError(
-                  "None of the configured Groq models are available "
-                  "for this API key."
+                  "None of the configured Groq models "
+                  "are available."
               )
 
           print()
           print(f"Using Groq model: {selected_model}")
 
           # --------------------------------------------------
-          # Read existing concepts
+          # Read concepts.md
           # --------------------------------------------------
           if not os.path.exists(CONCEPTS_FILE):
-              open(
+              with open(
                   CONCEPTS_FILE,
                   "w",
                   encoding="utf-8"
-              ).close()
+              ):
+                  pass
 
           with open(
               CONCEPTS_FILE,
@@ -145,31 +150,32 @@ jobs:
               existing = f.read()
 
           # --------------------------------------------------
-          # Extract existing headings only
-          #
-          # This prevents the prompt from growing massively
-          # as concepts.md gets larger.
+          # Extract existing headings
           # --------------------------------------------------
           existing_titles = []
 
           for line in existing.splitlines():
+
               stripped = line.strip()
 
               if stripped.startswith("#"):
+
                   title = stripped.lstrip("#").strip()
 
                   if title:
                       existing_titles.append(title)
 
-          existing_titles_text = "\n".join(
-              f"- {title}"
-              for title in existing_titles
-          )
+          if existing_titles:
 
-          if not existing_titles_text:
+              existing_titles_text = "\n".join(
+                  f"- {title}"
+                  for title in existing_titles
+              )
+
+          else:
+
               existing_titles_text = "- No concepts yet."
 
-          print()
           print(
               f"Existing concept headings: "
               f"{len(existing_titles)}"
@@ -181,79 +187,96 @@ jobs:
           prompt = f"""
           You maintain a personal Computer Science concepts repository.
 
-          Generate EXACTLY ONE new Computer Science concept that is
-          NOT already covered by the existing concept titles.
+          Generate EXACTLY ONE new Computer Science concept.
+
+          The concept MUST NOT duplicate any concept in the existing
+          concept list below.
+
+          Preferred areas:
+
+          - Data Structures
+          - Algorithms
+          - Operating Systems
+          - Computer Networks
+          - Databases
+          - Distributed Systems
+          - System Design
+          - Software Engineering
+          - Cybersecurity
+          - Artificial Intelligence
+          - Machine Learning
+          - Programming Languages
+          - Computer Architecture
+          - Cloud Computing
+          - DevOps
 
           Requirements:
 
           1. Generate exactly ONE concept.
-          2. Do NOT duplicate an existing concept.
-          3. The concept must be useful for Computer Science students
-             and software engineers.
-          4. Prefer topics from:
-             - Data Structures
-             - Algorithms
-             - Operating Systems
-             - Computer Networks
-             - Databases
-             - Distributed Systems
-             - System Design
-             - Software Engineering
-             - Cybersecurity
-             - Artificial Intelligence
-             - Machine Learning
-             - Programming Languages
-             - Computer Architecture
-             - Cloud Computing
-             - DevOps
+          2. Do not duplicate an existing concept.
+          3. Make it useful for a Computer Science student
+             and software engineer.
+          4. Explain it clearly and practically.
+          5. Keep the explanation concise but informative.
+          6. Include a practical example when appropriate.
+          7. The content must use Markdown.
+          8. Do not include an introduction.
+          9. Do not include commentary outside the concept.
+          10. Do not use code fences around the entire response.
 
-          5. Explain the concept clearly and practically.
-          6. Keep it concise but informative.
-          7. Include a practical example when useful.
-          8. The content must be Markdown.
-          9. The title should be suitable for an H2 heading.
-          10. Do not include an introduction.
-          11. Do not include commentary outside the concept.
-          12. Return ONLY valid JSON in this exact format:
+          IMPORTANT OUTPUT FORMAT:
 
-          {{
-            "title": "Concept Title",
-            "content": "Markdown explanation of the concept"
-          }}
+          Return ONLY the following format:
+
+          TITLE: Concept Title
+
+          CONTENT:
+          Markdown explanation of the concept.
+
+          Do not add anything before TITLE.
+          Do not add anything after the CONTENT.
 
           Existing concepts:
+          ==================
 
           {existing_titles_text}
           """
 
           # --------------------------------------------------
-          # Groq request
+          # API payload
+          #
+          # IMPORTANT:
+          # No response_format/json_object here.
+          #
+          # This avoids the JSON validation problem with
+          # Qwen reasoning mode.
           # --------------------------------------------------
           payload = {
               "model": selected_model,
+
               "messages": [
-                  {
-                      "role": "system",
-                      "content": (
-                          "You are an expert Computer Science educator "
-                          "and software engineer. "
-                          "Return only valid JSON."
-                      ),
-                  },
                   {
                       "role": "user",
                       "content": prompt,
-                  },
+                  }
               ],
+
               "temperature": 0.7,
-              "max_completion_tokens": 1500,
-              "response_format": {
-                  "type": "json_object"
-              },
+
+              "max_completion_tokens": 1800,
+
+              # Qwen 3.6 supports disabling reasoning.
+              # This makes the response cleaner and faster.
+              "reasoning_effort": "none",
+
+              "stream": False,
           }
 
           data = json.dumps(payload).encode("utf-8")
 
+          # --------------------------------------------------
+          # API request
+          # --------------------------------------------------
           request = urllib.request.Request(
               API_URL,
               data=data,
@@ -265,14 +288,15 @@ jobs:
               method="POST",
           )
 
-          # --------------------------------------------------
-          # API call with retry
-          # --------------------------------------------------
           result = None
 
+          # --------------------------------------------------
+          # Retry temporary failures
+          # --------------------------------------------------
           for attempt in range(3):
 
               try:
+
                   print(
                       f"Calling Groq "
                       f"(attempt {attempt + 1}/3)..."
@@ -301,22 +325,30 @@ jobs:
                   )
                   print(body)
 
-                  # 403 is a permission problem and retrying
-                  # will not fix it.
-                  if e.code == 403:
+                  # Don't retry permission/auth errors.
+                  if e.code in (400, 401, 403):
+
                       raise RuntimeError(
-                          "Groq returned HTTP 403. "
-                          "The selected model is not permitted "
-                          "for this API key/project."
+                          f"Groq request failed with HTTP "
+                          f"{e.code}."
                       )
 
-                  # Retry temporary errors.
-                  if e.code in (429, 500, 502, 503, 504):
+                  # Retry rate limits and temporary server errors.
+                  if e.code in (
+                      429,
+                      500,
+                      502,
+                      503,
+                      504
+                  ):
+
                       if attempt < 2:
+
                           wait = 5 * (attempt + 1)
 
                           print(
-                              f"Retrying in {wait} seconds..."
+                              f"Retrying in "
+                              f"{wait} seconds..."
                           )
 
                           time.sleep(wait)
@@ -327,14 +359,17 @@ jobs:
               except Exception as e:
 
                   print(
-                      f"Request failed: {type(e).__name__}: {e}"
+                      f"Request failed: "
+                      f"{type(e).__name__}: {e}"
                   )
 
                   if attempt < 2:
+
                       wait = 5 * (attempt + 1)
 
                       print(
-                          f"Retrying in {wait} seconds..."
+                          f"Retrying in "
+                          f"{wait} seconds..."
                       )
 
                       time.sleep(wait)
@@ -343,16 +378,21 @@ jobs:
                   raise
 
           if result is None:
+
               raise RuntimeError(
                   "Groq did not return a response."
               )
 
           # --------------------------------------------------
-          # Extract response
+          # Extract response text
           # --------------------------------------------------
           try:
-              raw_content = (
-                  result["choices"][0]["message"]["content"]
+
+              response_text = (
+                  result["choices"][0]
+                  ["message"]
+                  ["content"]
+                  .strip()
               )
 
           except (
@@ -360,6 +400,7 @@ jobs:
               IndexError,
               TypeError
           ):
+
               print(
                   json.dumps(
                       result,
@@ -371,43 +412,71 @@ jobs:
                   "Unexpected Groq API response."
               )
 
-          if not raw_content:
+          if not response_text:
+
               raise RuntimeError(
                   "Groq returned an empty response."
               )
 
-          # --------------------------------------------------
-          # Parse JSON
-          # --------------------------------------------------
-          try:
-              generated = json.loads(
-                  raw_content
-              )
+          print()
+          print("Raw Groq response:")
+          print(response_text)
+          print()
 
-          except json.JSONDecodeError:
-              print("Groq returned invalid JSON:")
-              print(raw_content)
+          # --------------------------------------------------
+          # Extract TITLE
+          # --------------------------------------------------
+          title_match = re.search(
+              r"(?im)^TITLE:\s*(.+?)\s*$",
+              response_text
+          )
+
+          if not title_match:
 
               raise RuntimeError(
-                  "Could not parse Groq response as JSON."
+                  "Could not find TITLE in Groq response."
               )
 
-          title = str(
-              generated.get("title", "")
+          title = title_match.group(1).strip()
+
+          # --------------------------------------------------
+          # Extract CONTENT
+          # --------------------------------------------------
+          content_match = re.search(
+              r"(?is)^CONTENT:\s*(.+?)\s*$",
+              response_text
+          )
+
+          if not content_match:
+
+              raise RuntimeError(
+                  "Could not find CONTENT in Groq response."
+              )
+
+          content = content_match.group(1).strip()
+
+          # --------------------------------------------------
+          # Clean accidental heading
+          # --------------------------------------------------
+          title = re.sub(
+              r"^#+\s*",
+              "",
+              title
           ).strip()
 
-          content = str(
-              generated.get("content", "")
-          ).strip()
-
+          # --------------------------------------------------
+          # Validate
+          # --------------------------------------------------
           if not title:
+
               raise RuntimeError(
-                  "Generated concept has no title."
+                  "Generated title is empty."
               )
 
           if not content:
+
               raise RuntimeError(
-                  "Generated concept has no content."
+                  "Generated content is empty."
               )
 
           # --------------------------------------------------
@@ -419,6 +488,7 @@ jobs:
           }
 
           if title.lower() in existing_lower:
+
               raise RuntimeError(
                   f"Duplicate concept generated: {title}"
               )
@@ -432,7 +502,7 @@ jobs:
           )
 
           # --------------------------------------------------
-          # Append concept
+          # Append to concepts.md
           # --------------------------------------------------
           with open(
               CONCEPTS_FILE,
@@ -443,21 +513,18 @@ jobs:
               f.write("\n\n---\n\n")
               f.write(concept)
 
-          print()
           print("========================================")
           print("Generated CS Concept")
           print("========================================")
           print(concept)
           print("========================================")
           print()
-          print(
-              f"Model used: {selected_model}"
-          )
+          print(f"Model used: {selected_model}")
 
           PY
 
       # --------------------------------------------------
-      # 3. Commit generated concept
+      # 3. Commit changes
       # --------------------------------------------------
       - name: Commit changes
         run: |
