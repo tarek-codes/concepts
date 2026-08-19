@@ -100,3 +100,37 @@ Consider a version control system like Git or a database snapshot mechanism:
 - Operating system processes where a child process inherits memory from the parent (`fork`).
 - Database systems requiring frequent snapshots for backup or point-in-time recovery.
 - Virtualization environments where multiple VMs share a base image but diverge slightly.
+
+
+---
+
+## Consistent Hashing
+
+Consistent Hashing is a distributed hashing technique used to distribute keys across nodes in a distributed system (e.g., cache servers, databases) while minimizing data relocation when nodes are added or removed.
+
+### The Problem with Standard Hashing
+In standard hashing, the node for a key $K$ is determined by `hash(K) % N`, where $N$ is the number of nodes. If a node is added or removed, $N$ changes, causing nearly all keys to be remapped. This results in massive cache misses and network traffic.
+
+### How Consistent Hashing Works
+1. **Hash Ring**: Imagine a circle representing the hash space (e.g., 0 to $2^{32}-1$).
+2. **Node Placement**: Each node is assigned a position on the ring based on its hash (e.g., `hash(Node_IP)`).
+3. **Key Placement**: Each key is hashed to a position on the ring. The key is stored on the first node encountered when moving clockwise from the key's position.
+
+### Handling Imbalance with Virtual Nodes
+If there are only a few physical nodes, they may be unevenly spaced on the ring, leading to hotspots. To solve this, each physical node is mapped to multiple **virtual nodes** on the ring. This ensures a more uniform distribution of keys.
+
+### Practical Example
+Consider a cache system with 3 servers: A, B, and C.
+1. Hash values place them at positions 10, 50, and 80 on the ring.
+2. A key `user_123` hashes to 40. Moving clockwise, it lands on Node B.
+3. If Node B fails, `user_123` moves to Node C. Keys on A and C remain unaffected.
+4. With virtual nodes, Node B might have 100 virtual positions spread across the ring, ensuring it handles ~33% of the load even with uneven physical placement.
+
+### Pros & Cons
+- **Pros**: Minimal data movement during node changes; load balancing via virtual nodes.
+- **Cons**: Complexity in implementation; requires consistent hash function.
+
+### When to Use
+- Distributed caches (Redis Cluster, Memcached)
+- Distributed databases (Cassandra, DynamoDB)
+- Content Delivery Networks (CDNs)
