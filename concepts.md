@@ -134,3 +134,43 @@ Consider a cache system with 3 servers: A, B, and C.
 - Distributed caches (Redis Cluster, Memcached)
 - Distributed databases (Cassandra, DynamoDB)
 - Content Delivery Networks (CDNs)
+
+
+---
+
+## Skip Lists
+
+**What It Is**
+A Skip List is a probabilistic data structure that allows for fast search, insertion, and deletion operations, typically with an average time complexity of $O(\log n)$. It achieves this by maintaining a linked hierarchy of subsequences, where each level "skips" over larger portions of the list. Unlike balanced binary search trees (like AVL or Red-Black trees), Skip Lists do not require complex rotation logic to maintain balance, making them simpler to implement and more cache-friendly in parallel environments.
+
+**How It Works**
+1. **Base Level**: The bottom level is a standard sorted linked list containing all elements.
+2. **Higher Levels**: Upper levels contain subsets of the elements from the levels below. Each element has a probability $p$ (usually 0.5) of appearing in the next higher level.
+3. **Search Process**: To find an element, you start at the highest level and move right. If the next node is greater than the target, you drop down one level and continue. This "elevator" approach reduces the search space exponentially.
+
+**Practical Example**
+Imagine a sorted list: `[2, 3, 5, 7, 11, 13, 17, 19]`.
+
+A possible Skip List structure might look like this (top to bottom):
+- Level 3: `2 -> 11`
+- Level 2: `2 -> 7 -> 11 -> 19`
+- Level 1: `2 -> 3 -> 5 -> 7 -> 11 -> 13 -> 17 -> 19`
+
+To search for `13`:
+1. Start at Level 3, node `2`. Next is `11` (since `11 < 13`, move right).
+2. Next is `NULL` (or end of list), so drop to Level 2.
+3. At Level 2, current is `11`. Next is `19` (since `19 > 13`, stop and drop to Level 1).
+4. At Level 1, current is `11`. Next is `13`. Found!
+
+**Pros & Cons**
+- **Pros**:
+  - Simpler to implement than balanced trees.
+  - Excellent for concurrent operations (insertions/deletions only affect local pointers).
+  - Good cache locality compared to pointer-heavy tree nodes.
+- **Cons**:
+  - Space overhead due to multiple pointers per node.
+  - Worst-case time complexity is $O(n)$ if the randomization is unlucky (though highly improbable).
+
+**When to Use**
+- Use Skip Lists when you need ordered data with frequent insertions/deletions and want to avoid the complexity of balancing trees.
+- Commonly used in databases like Redis (for sorted sets) and LevelDB/RocksDB (as an index structure).
