@@ -174,3 +174,37 @@ To search for `13`:
 **When to Use**
 - Use Skip Lists when you need ordered data with frequent insertions/deletions and want to avoid the complexity of balancing trees.
 - Commonly used in databases like Redis (for sorted sets) and LevelDB/RocksDB (as an index structure).
+
+
+---
+
+## The CAP Theorem
+
+The CAP Theorem is a fundamental concept in distributed systems stating that any distributed data store can only guarantee two out of three of the following properties simultaneously:
+
+1. **Consistency (C)**: Every read receives the most recent write or an error. All nodes see the same data at the same time.
+2. **Availability (A)**: Every request receives a (non-error) response, without the guarantee that it contains the most recent write.
+3. **Partition Tolerance (P)**: The system continues to operate despite an arbitrary number of messages being dropped or delayed by the network between nodes.
+
+### Why You Can't Have All Three
+
+In a distributed system, network failures (partitions) are inevitable. When a partition occurs, you must choose between:
+*   **CP (Consistency + Partition Tolerance)**: If a partition occurs, the system blocks writes or returns errors to maintain data consistency. It sacrifices availability.
+*   **AP (Availability + Partition Tolerance)**: If a partition occurs, the system continues to accept writes and reads, but the data may be stale or inconsistent across nodes until the partition heals. It sacrifices consistency.
+
+**Note:** In practice, Partition Tolerance is non-negotiable for distributed systems. Therefore, the real choice is almost always between Consistency and Availability.
+
+### Practical Examples
+
+*   **CP Systems (e.g., ZooKeeper, HBase, MongoDB with strong consistency)**:
+    *   *Use Case*: Financial transactions, inventory management where double-selling must be prevented.
+    *   *Behavior*: If the network splits, the system may become temporarily unavailable rather than serve incorrect data.
+
+*   **AP Systems (e.g., Cassandra, DynamoDB)**:
+    *   *Use Case*: Social media feeds, e-commerce product catalogs, IoT sensors.
+    *   *Behavior*: If the network splits, users can still read/write data. Conflicts are resolved later when the network heals ("Eventual Consistency").
+
+### When to Use Which?
+
+*   Choose **CP** if data accuracy is critical and a brief downtime is acceptable.
+*   Choose **AP** if system uptime is critical and slight data delays are acceptable.
