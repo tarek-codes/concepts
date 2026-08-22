@@ -208,3 +208,38 @@ In a distributed system, network failures (partitions) are inevitable. When a pa
 
 *   Choose **CP** if data accuracy is critical and a brief downtime is acceptable.
 *   Choose **AP** if system uptime is critical and slight data delays are acceptable.
+
+
+---
+
+## Amdahl's Law
+
+**Amdahl's Law** is a formula that calculates the theoretical speedup of a task when only a portion of it can be parallelized. It defines the limits of parallelization, demonstrating that as you add more processors, the speedup is constrained by the serial fraction of the program.
+
+### The Formula
+$$S_{latency} = \frac{1}{(1 - p) + \frac{p}{n}}$$
+
+- $S_{latency}$: The theoretical speedup of the total execution time.
+- $p$: The proportion of the program that can be parallelized (0 to 1).
+- $n$: The number of processors/cores.
+
+### Practical Example
+Imagine a task takes 100 seconds to run on a single core.
+- 20 seconds are strictly serial (cannot be parallelized).
+- 80 seconds can be parallelized ($p = 0.8$).
+
+**With 4 Cores ($n=4$):**
+$$Speedup = \frac{1}{(1 - 0.8) + \frac{0.8}{4}} = \frac{1}{0.2 + 0.2} = \frac{1}{0.4} = 2.5$$
+
+The new execution time is $100 / 2.5 = 40$ seconds.
+
+**With Infinite Cores ($n \to \infty$):**
+As $n$ approaches infinity, $\frac{p}{n}$ approaches 0.
+$$Max\ Speedup = \frac{1}{1 - p} = \frac{1}{0.2} = 5$$
+
+Even with infinite hardware, the task cannot run faster than 5x because the serial portion (20 seconds) remains a bottleneck.
+
+### Why It Matters
+1. **Diminishing Returns**: Adding more cores yields less benefit as you scale.
+2. **Optimization Focus**: It highlights that optimizing the serial part of code is often more valuable than parallelizing the rest.
+3. **Realistic Expectations**: Helps engineers estimate performance gains before investing in expensive parallel hardware or complex concurrency logic.
