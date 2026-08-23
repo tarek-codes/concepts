@@ -243,3 +243,42 @@ Even with infinite hardware, the task cannot run faster than 5x because the seri
 1. **Diminishing Returns**: Adding more cores yields less benefit as you scale.
 2. **Optimization Focus**: It highlights that optimizing the serial part of code is often more valuable than parallelizing the rest.
 3. **Realistic Expectations**: Helps engineers estimate performance gains before investing in expensive parallel hardware or complex concurrency logic.
+
+
+---
+
+## Memoization
+
+**Memoization** is an optimization technique used primarily to speed up computer programs by storing the results of expensive function calls and returning the cached result when the same inputs occur again. It is a form of caching specific to functions.
+
+**How It Works**
+1.  When a memoized function is called with a specific set of arguments, it first checks if the result for those arguments is already stored in a cache (usually a hash map or dictionary).
+2.  If the result exists in the cache, it is returned immediately without executing the function logic.
+3.  If the result does not exist, the function executes the computation, stores the result in the cache associated with the input arguments, and then returns the result.
+
+**Practical Example**
+A classic example is calculating Fibonacci numbers recursively. Without memoization, calculating `fib(5)` involves redundant calculations of `fib(3)`, `fib(2)`, etc.
+
+*   **Without Memoization:** Time complexity is $O(2^n)$.
+*   **With Memoization:** Time complexity is reduced to $O(n)$ because each unique subproblem is solved only once.
+
+```python
+memo = {}
+
+def fib(n):
+    if n in memo:
+        return memo[n]
+    if n <= 1:
+        return n
+    memo[n] = fib(n - 1) + fib(n - 2)
+    return memo[n]
+```
+
+**When to Use**
+*   **Pure Functions:** Memoization works best with pure functions (functions that return the same output for the same input and have no side effects).
+*   **Expensive Computations:** Use it when the function performs heavy calculations, database queries, or API calls.
+*   **Repeated Inputs:** It is most effective when the function is called frequently with the same or overlapping arguments.
+
+**Pros & Cons**
+*   **Pros:** Significantly reduces time complexity; trades space for time.
+*   **Cons:** Increases memory usage; requires careful handling of mutable arguments; not suitable for functions with side effects or random outputs.
