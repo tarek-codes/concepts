@@ -282,3 +282,39 @@ def fib(n):
 **Pros & Cons**
 *   **Pros:** Significantly reduces time complexity; trades space for time.
 *   **Cons:** Increases memory usage; requires careful handling of mutable arguments; not suitable for functions with side effects or random outputs.
+
+
+---
+
+## The CAP Theorem vs. PACELC Theorem
+
+While the CAP Theorem is the foundational concept for distributed systems, the **PACELC Theorem** provides a more granular and practical framework for system design by addressing behavior during both failures and normal operations.
+
+### The Limitation of CAP
+The CAP Theorem states that a distributed system can only guarantee two of the following three properties:
+1.  **Consistency**: Every read receives the most recent write or an error.
+2.  **Availability**: Every request receives a (non-error) response, without the guarantee that it contains the most recent write.
+3.  **Partition Tolerance**: The system continues to operate despite an arbitrary number of messages being dropped or delayed by the network between nodes.
+
+In real-world distributed systems, Partition Tolerance (P) is mandatory because network failures are inevitable. This leaves a binary choice between Consistency (C) and Availability (A) *only when a partition occurs*. It says nothing about how the system behaves when the network is healthy.
+
+### Enter PACELC
+Proposed by Jay Kreps, the PACELC theorem extends CAP by adding the "ELC" clause:
+
+**PAC / ELC**
+
+*   **P**artition: When the system experiences a network partition, do you choose **A**vailability or **C**onsistency?
+*   **E**lse (No Partition): When the system is healthy, what is the tradeoff between **L**atency and **C**onsistency?
+
+### Why It Matters
+Most modern distributed systems (like NoSQL databases) are designed to be highly available during partitions (AP systems). However, the PACELC theorem forces engineers to think about the **steady-state** performance. Even when the network is perfect, you must decide:
+*   Do you want strong consistency (higher latency due to synchronization)?
+*   Or do you want low latency (eventual consistency, where reads might be stale)?
+
+### Practical Example: Twitter/X Feed
+*   **During a Partition (P)**: If the database cluster splits, Twitter prioritizes **Availability (A)**. You can still post tweets and view your feed, even if some recent posts from friends are temporarily missing or duplicated.
+*   **During Normal Operation (E)**: Twitter prioritizes **Low Latency (L)** over strong **Consistency (C)**. When you click "Like," the UI updates immediately (low latency), but the backend might take a few seconds to propagate that like to all servers (eventual consistency). Strong consistency would require waiting for all nodes to confirm, increasing latency.
+
+### When to Use Which?
+*   **Use CAP thinking** for high-level architectural decisions regarding fault tolerance and data integrity policies.
+*   **Use PACELC thinking** for tuning performance and user experience in distributed databases (e.g., Cassandra, DynamoDB, MongoDB) to balance speed vs. accuracy in normal operations.
