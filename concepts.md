@@ -318,3 +318,37 @@ Most modern distributed systems (like NoSQL databases) are designed to be highly
 ### When to Use Which?
 *   **Use CAP thinking** for high-level architectural decisions regarding fault tolerance and data integrity policies.
 *   **Use PACELC thinking** for tuning performance and user experience in distributed databases (e.g., Cassandra, DynamoDB, MongoDB) to balance speed vs. accuracy in normal operations.
+
+
+---
+
+## Circuit Breaker Pattern
+
+The Circuit Breaker pattern is a design pattern used to detect failures and encapsulate the logic of preventing a failure from constantly recurring, typically in distributed systems or microservices architectures. It acts as a proxy for service calls, monitoring for failures. If the failure count exceeds a threshold, the "circuit" trips to an open state, causing subsequent calls to fail immediately without attempting the actual operation. This prevents cascading failures and allows the dependent service to continue functioning or fail gracefully, rather than hanging or crashing due to resource exhaustion.
+
+### How It Works
+The pattern operates in three states:
+
+1.  **Closed**: The normal operating state. Requests pass through to the service. The breaker monitors for errors. If the error rate exceeds a defined threshold within a time window, the circuit trips to **Open**.
+2.  **Open**: Requests are blocked immediately and fail fast (often returning a cached response or a specific error). No requests reach the failing service. After a defined timeout period, the circuit transitions to **Half-Open**.
+3.  **Half-Open**: A limited number of test requests are allowed to pass through. If these succeed, the circuit assumes the service has recovered and closes again. If they fail, the circuit returns to **Open**.
+
+### Practical Example
+Imagine an e-commerce application where the "Checkout Service" depends on the "Payment Gateway Service."
+
+*   **Without Circuit Breaker**: If the Payment Gateway goes down, the Checkout Service keeps trying to connect, tying up threads and memory. Eventually, the Checkout Service crashes, taking down the entire website.
+*   **With Circuit Breaker**:
+    1.  The Payment Gateway starts failing.
+    2.  After 5 failures, the Circuit Breaker opens.
+    3.  The next user trying to checkout gets an immediate "Service Unavailable" message instead of a 30-second timeout.
+    4.  The Checkout Service remains stable and responsive for other non-payment operations.
+    5.  After 30 seconds, the breaker lets one request through. If it succeeds, normal operation resumes.
+
+### Pros & Cons
+*   **Pros**: Prevents cascading failures, improves system resilience, provides faster failure feedback to users, and allows failed services time to recover.
+*   **Cons**: Adds complexity to the codebase, requires careful tuning of thresholds and timeouts, and may result in false positives if the network is merely slow rather than down.
+
+### When to Use
+*   In microservices architectures where services depend on each other.
+*   When calling external APIs or third-party services that may be unstable.
+*   When you need to implement graceful degradation strategies.
