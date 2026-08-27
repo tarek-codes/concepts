@@ -352,3 +352,40 @@ Imagine an e-commerce application where the "Checkout Service" depends on the "P
 *   In microservices architectures where services depend on each other.
 *   When calling external APIs or third-party services that may be unstable.
 *   When you need to implement graceful degradation strategies.
+
+
+---
+
+## Event Sourcing
+
+**Event Sourcing** is a design pattern where the state of a system is stored as a sequence of state-changing events, rather than just the current state. Instead of overwriting records in a database, every change is appended as an immutable event.
+
+### How It Works
+1.  **Command**: A user action (e.g., "Deposit $50") triggers a command.
+2.  **Event**: The system validates the command and emits an event (e.g., `MoneyDeposited { amount: 50 }`).
+3.  **Store**: The event is appended to an **Event Store** (an append-only log).
+4.  **Projection**: To get the current state (e.g., account balance), the system replays all relevant events from the beginning up to the present.
+
+### Practical Example: Bank Account
+In a traditional CRUD model, you update the `balance` column. In Event Sourcing:
+-   `Event 1`: `AccountOpened { initialBalance: 100 }`
+-   `Event 2`: `MoneyDeposited { amount: 50 }`
+-   `Event 3`: `MoneyWithdrawn { amount: 20 }`
+
+**Current State**: $100 + $50 - $20 = **$130**.
+
+### Why It Matters
+-   **Audit Trail**: You have a complete, immutable history of *why* the state is what it is.
+-   **Time Travel**: You can reconstruct the state of the system at any point in the past by replaying events up to that timestamp.
+-   **Debugging**: Instead of guessing what caused a bug, you can inspect the exact sequence of events that led to the error.
+
+### Pros & Cons
+-   **Pros**: Full history, easier debugging, supports complex business logic, natural fit for CQRS (Command Query Responsibility Segregation).
+-   **Cons**: Higher complexity, performance overhead for reading current state (unless snapshots are used), requires careful handling of schema changes.
+
+### When to Use
+-   Financial systems (banking, trading) where audit trails are mandatory.
+-   Collaborative applications (like Google Docs) where history and versioning are critical.
+-   Systems requiring complex analytics based on historical behavior.
+
+**When NOT to Use**: Simple CRUD applications where history is irrelevant and performance is the primary concern.
