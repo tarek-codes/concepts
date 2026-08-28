@@ -389,3 +389,51 @@ In a traditional CRUD model, you update the `balance` column. In Event Sourcing:
 -   Systems requiring complex analytics based on historical behavior.
 
 **When NOT to Use**: Simple CRUD applications where history is irrelevant and performance is the primary concern.
+
+
+---
+
+## Red-Black Trees
+
+# Red-Black Trees
+
+A Red-Black Tree is a self-balancing Binary Search Tree (BST) that guarantees $O(\log n)$ time complexity for search, insertion, and deletion operations. It achieves this by maintaining specific properties that ensure the tree remains approximately balanced.
+
+## How It Works
+
+Each node in a Red-Black Tree has an extra bit of storage, representing its color, which can be either **RED** or **BLACK**. The tree must satisfy five properties:
+
+1. Every node is either red or black.
+2. The root is black.
+3. All leaves (NIL nodes) are black.
+4. If a node is red, then both its children are black (no two red nodes can be adjacent).
+5. Every path from a given node to any of its descendant NIL nodes contains the same number of black nodes (Black Height).
+
+When an insertion or deletion violates these properties, the tree is rebalanced using **recoloring** and **rotations** (left and right).
+
+## Practical Example
+
+**Scenario:** Implementing a priority queue or a dictionary where frequent insertions and deletions occur.
+
+Consider inserting nodes `10`, `20`, `30` into an empty Red-Black Tree:
+
+1. Insert `10`: Becomes root (Black).
+2. Insert `20`: Becomes right child of `10` (Red).
+3. Insert `30`: Becomes right child of `20`. This creates a Red-Red violation (`20` and `30` are both red).
+   - **Fix:** Recolor `20` to Black, `10` to Red. If `10`'s parent is Red, a rotation is needed. In this small case, `10` becomes Black (root), `20` stays Black, `30` becomes Red. The tree remains balanced.
+
+## Pros & Cons
+
+**Pros:**
+- Guaranteed $O(\log n)$ worst-case time complexity for operations.
+- More efficient than AVL trees for frequent insertions/deletions because it requires fewer rotations.
+
+**Cons:**
+- Higher constant factors due to color management and complex rebalancing logic.
+- More memory overhead per node (1 extra bit for color).
+
+## When to Use
+
+- Use when you need a balanced BST with frequent updates (insertions/deletions).
+- Commonly used in implementing ordered maps and sets in standard libraries (e.g., `std::map` in C++, `TreeMap` in Java).
+- Prefer over AVL trees if write operations are more frequent than read operations.
