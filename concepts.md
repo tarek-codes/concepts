@@ -437,3 +437,35 @@ Consider inserting nodes `10`, `20`, `30` into an empty Red-Black Tree:
 - Use when you need a balanced BST with frequent updates (insertions/deletions).
 - Commonly used in implementing ordered maps and sets in standard libraries (e.g., `std::map` in C++, `TreeMap` in Java).
 - Prefer over AVL trees if write operations are more frequent than read operations.
+
+
+---
+
+## The Pipeline Pattern
+
+The Pipeline Pattern is a design pattern that structures a software process as a series of processing steps, where the output of one step becomes the input of the next. It is widely used in data processing, ETL (Extract, Transform, Load) jobs, and compiler design.
+
+**How It Works**
+1. **Source**: Generates or retrieves raw data.
+2. **Stages**: Independent processing units that transform the data. Each stage must be stateless and idempotent where possible.
+3. **Sink**: The final destination for the processed data (e.g., database, file, API).
+
+**Practical Example: Image Processing Pipeline**
+Imagine resizing and compressing images for a web application:
+1. **Stage 1 (Resize)**: Takes original image, resizes to 800x600.
+2. **Stage 2 (Filter)**: Applies a grayscale filter.
+3. **Stage 3 (Compress)**: Converts to WebP format with 80% quality.
+4. **Sink**: Saves the final file to cloud storage.
+
+**Why It Matters**
+- **Modularity**: Each stage can be developed, tested, and optimized independently.
+- **Reusability**: Stages like "Compress" or "Validate" can be reused across different pipelines.
+- **Scalability**: Stages can be parallelized or distributed across multiple workers (e.g., using message queues like Kafka or RabbitMQ).
+
+**Pros & Cons**
+- **Pros**: Clear separation of concerns, easy to debug, highly maintainable.
+- **Cons**: Can introduce latency due to sequential processing; requires careful error handling to prevent data loss if a stage fails.
+
+**When to Use**
+- Use when data transformation involves multiple distinct steps.
+- Ideal for ETL processes, log processing, or any workflow where data flows through a fixed sequence of transformations.
