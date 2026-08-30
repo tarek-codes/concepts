@@ -469,3 +469,38 @@ Imagine resizing and compressing images for a web application:
 **When to Use**
 - Use when data transformation involves multiple distinct steps.
 - Ideal for ETL processes, log processing, or any workflow where data flows through a fixed sequence of transformations.
+
+
+---
+
+## The Two-Phase Commit (2PC) Protocol
+
+**The Two-Phase Commit (2PC) Protocol** is a fundamental algorithm in distributed systems used to ensure atomicity across multiple nodes. It guarantees that all participants in a distributed transaction either commit the transaction successfully or abort it entirely, preventing a state where some nodes commit while others abort (partial failure).
+
+**How It Works**
+The protocol involves a **Coordinator** (initiator) and multiple **Participants** (resources). It operates in two distinct phases:
+
+1.  **Prepare Phase (Voting):**
+    *   The Coordinator sends a `prepare` message to all Participants.
+    *   Each Participant performs local operations (e.g., writing to a write-ahead log) to ensure it *can* commit.
+    *   If successful, the Participant replies with `YES` (ready to commit). If it cannot proceed, it replies with `NO` (abort).
+
+2.  **Commit/Abort Phase (Decision):**
+    *   **Commit:** If the Coordinator receives `YES` from *all* Participants, it sends a global `commit` message to everyone. Participants then apply the changes and release locks.
+    *   **Abort:** If *any* Participant replies with `NO`, or if the Coordinator times out waiting for a response, it sends a global `abort` message. Participants roll back their local changes.
+
+**Practical Example: Online Flight Booking**
+Imagine booking a flight that involves two separate services: **Seat Reservation** and **Payment Processing**.
+1.  **Prepare:** The booking service asks the Seat Service to hold a seat and the Payment Service to validate funds.
+2.  **Vote:** The Seat Service replies "Hold confirmed" (YES). The Payment Service replies "Funds insufficient" (NO).
+3.  **Decision:** The Coordinator sees a NO and sends an `abort` to both. The seat hold is released, and no charge is made.
+
+**Pros & Cons**
+*   **Pros:** Guarantees atomicity; ensures data consistency across distributed databases.
+*   **Cons:**
+    *   **Blocking:** If the Coordinator fails after sending `prepare` but before sending the decision, Participants are left in an uncertain "limbo" state, holding resources until the Coordinator recovers.
+    *   **Performance:** Requires two rounds of network communication, adding latency.
+
+**When to Use**
+*   Use 2PC when strict consistency is required across multiple independent data stores (e.g., traditional SQL databases in a distributed setup).
+*   Avoid 2PC for high-throughput, loosely coupled microservices; prefer **Sagas** or **Eventual Consistency** patterns instead to avoid blocking issues.
