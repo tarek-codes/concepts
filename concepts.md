@@ -504,3 +504,50 @@ Imagine booking a flight that involves two separate services: **Seat Reservation
 **When to Use**
 *   Use 2PC when strict consistency is required across multiple independent data stores (e.g., traditional SQL databases in a distributed setup).
 *   Avoid 2PC for high-throughput, loosely coupled microservices; prefer **Sagas** or **Eventual Consistency** patterns instead to avoid blocking issues.
+
+
+---
+
+## Raft Consensus Algorithm
+
+The Raft Consensus Algorithm is a protocol for managing a replicated log in a distributed system. Unlike the more complex Paxos algorithm, Raft is designed for understandability, making it easier to implement correctly. It achieves consensus through a leader-based state machine replication approach.
+
+### How It Works
+
+Raft divides the consensus problem into three sub-problems:
+1.  **Leader Election:** If the current leader fails or becomes unreachable, a new leader is elected via a multi-round voting process.
+2.  **Log Replication:** The leader acts as the intermediary between clients and the cluster. It receives client requests, appends them to its local log, and replicates these entries to followers.
+3.  **Safety:** The system ensures that only entries from the current term’s leader are committed, preventing "split-brain" scenarios where conflicting states exist.
+
+The cluster consists of servers in one of three states:
+-   **Leader:** Handles all client requests and replicates log entries.
+-   **Follower:** Passively responds to requests from leaders and candidates.
+-   **Candidate:** An intermediate state used only during leader election.
+
+### Practical Example
+
+Consider a distributed key-value store (like etcd or Consul) running on three nodes (A, B, C).
+
+1.  **Leader Election:** Node A becomes the leader. Nodes B and C become followers.
+2.  **Write Request:** A client sends `SET key="value"` to Node A.
+3.  **Replication:** Node A appends the entry to its log and sends `AppendEntries` RPCs to B and C.
+4.  **Commit:** Once a majority (2 out of 3 nodes) have persisted the entry, Node A marks it as committed and applies it to its state machine. It then sends a success response to the client.
+5.  **Failure Handling:** If Node A crashes, Nodes B and C will timeout waiting for heartbeats. One of them (e.g., B) will increment its term, become a Candidate, and request votes. If it gets a majority vote, it becomes the new Leader.
+
+### Pros & Cons
+
+**Pros:**
+-   **Understandability:** Explicitly designed to be easier to reason about than Paxos.
+-   **Strong Consistency:** Guarantees linearizable reads and writes.
+-   **Fault Tolerance:** Can tolerate up to $N/2 - 1$ node failures in a cluster of $N$ nodes.
+
+**Cons:**
+-   **Leader Bottleneck:** All writes must go through the leader, which can become a performance bottleneck.
+-   **Latency:** Requires network round-trips for replication and acknowledgment before committing.
+
+### When to Use
+
+-   When you need strong consistency in a distributed system.
+-   For distributed key-value stores (e.g., etcd, Consul).
+-   For database replication (e.g., etcd-backed Kubernetes etcd).
+-   Avoid in systems where high availability is prioritized over strong consistency (use Dynamo-style eventual consistency instead).
