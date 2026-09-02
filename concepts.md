@@ -589,3 +589,65 @@ Imagine an e-commerce platform with three microservices: **Inventory**, **Paymen
 
 ### Best Practice
 In robust distributed systems, these patterns are often used **together**. Use Bulkheads to isolate resources for different services, and use Circuit Breakers within each bulkhead to handle failures gracefully.
+
+
+---
+
+## Command Query Separation (CQS)
+
+**Command Query Separation (CQS)** is a software design principle introduced by Bertrand Meyer. It states that every method should be either a **command** (which performs an action and changes the state of the system) or a **query** (which returns data to the caller but does not change the state), but never both.
+
+### Why It Matters
+Separating side effects from data retrieval leads to code that is easier to reason about, test, and parallelize. If a method only returns data without changing state, you know it is safe to call multiple times or in any order without unintended consequences.
+
+### Key Rules
+1. **Commands**: Change the state of the object. They return `void` (or a success/failure status) but do not return data about the object's state.
+2. **Queries**: Return data. They do not change the observable state of the object. They should be idempotent and free of side effects.
+
+### Practical Example: Bank Account
+
+**Violating CQS (Bad Practice):**
+```python
+class BankAccount:
+    def withdraw_and_get_balance(self, amount):
+        self.balance -= amount  # Side effect (Command)
+        return self.balance     # Return value (Query)
+```
+*Problem:* Calling this method changes the account state AND returns data. This makes it difficult to predict behavior if called multiple times or concurrently.
+
+**Following CQS (Good Practice):**
+```python
+class BankAccount:
+    def withdraw(self, amount):
+        if self.balance >= amount:
+            self.balance -= amount
+        else:
+            raise InsufficientFundsError()
+        # No return value
+
+    def get_balance(self):
+        return self.balance  # No side effects
+```
+*Benefit:* The `withdraw` method is a pure command. The `get_balance` method is a pure query. You can call `get_balance` as many times as you want without altering the account.
+
+### Pros & Cons
+
+**Pros:**
+- **Predictability:** Queries are safe to call repeatedly without changing state.
+- **Parallelism:** Queries can be executed in parallel without locking mechanisms.
+- **Caching:** Since queries are pure functions, their results can be cached safely.
+- **Testing:** Easier to unit test because inputs and outputs are clearly separated from side effects.
+
+**Cons:**
+- **Verbosity:** May require more methods (e.g., separate `save` and `get` instead of `save_and_get`).
+- **Network Overhead:** In distributed systems, separating command and query may require two network round-trips instead of one.
+
+### When to Use
+- **Domain-Driven Design (DDD):** CQS is a core principle in DDD, often implemented via CQRS (Command Query Responsibility Segregation).
+- **Functional Programming:** Aligns with the principle of pure functions.
+- **High-Concurrency Systems:** Helps avoid race conditions by isolating state changes from reads.
+- **API Design:** RESTful APIs naturally follow CQS (POST/PUT/DELETE are commands; GET is a query).
+
+### CQS vs. CQRS
+- **CQS** is a design principle for methods/interfaces.
+- **CQRS** is an architectural pattern that separates read and write models entirely, often using different databases or data structures for commands and queries. CQS is a prerequisite for effective CQRS implementation.
