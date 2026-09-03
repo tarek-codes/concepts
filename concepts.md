@@ -651,3 +651,41 @@ class BankAccount:
 ### CQS vs. CQRS
 - **CQS** is a design principle for methods/interfaces.
 - **CQRS** is an architectural pattern that separates read and write models entirely, often using different databases or data structures for commands and queries. CQS is a prerequisite for effective CQRS implementation.
+
+
+---
+
+## Leaky Bucket Algorithm
+
+The **Leaky Bucket Algorithm** is a common technique used in networking and system design to control the rate of data transmission or request processing. It acts as a traffic shaper, smoothing out bursts of traffic to ensure downstream systems are not overwhelmed.
+
+### How It Works
+Imagine a physical bucket with a hole in the bottom:
+1.  **Input (Inflow):** Data packets or requests enter the bucket. If the bucket is full, the new data is discarded (dropped).
+2.  **Output (Outflow):** Data leaks out of the hole at a constant, fixed rate, regardless of how fast it entered.
+
+This ensures that the output rate never exceeds a specific threshold, even if the input rate spikes temporarily.
+
+### Practical Example: API Rate Limiting
+Consider an API gateway protecting a backend database:
+-   **Bucket Capacity:** 100 requests.
+-   **Leak Rate:** 10 requests per second.
+
+**Scenario:**
+1.  A user sends 50 requests in 1 second. The bucket now contains 50 units. Since 50 < 100, all requests are accepted and queued.
+2.  The system processes these requests at 10/second.
+3.  Immediately after, the user sends another 60 requests. The bucket has 40 remaining (50 entered, 10 leaked). Adding 60 makes it 100. It is full.
+4.  A final request arrives. The bucket is full (100/100). This request is **rejected** (HTTP 429 Too Many Requests).
+
+### Pros & Cons
+-   **Pros:**
+    -   **Smooths Traffic:** Prevents sudden spikes from crashing backend services.
+    -   **Predictable Output:** Downstream systems receive data at a constant rate, aiding in resource planning.
+    -   **Simple Implementation:** Easy to code using a timer and a counter.
+-   **Cons:**
+    -   **No Burst Handling:** Unlike the Token Bucket algorithm, it does not allow for legitimate bursts of traffic to be processed quickly if the system has idle capacity.
+    -   **Latency:** If the bucket fills up, requests wait in the queue, increasing latency for the user.
+
+### When to Use
+-   Use **Leaky Bucket** when you need to enforce a strict, constant output rate to protect fragile downstream resources (e.g., a legacy database that cannot handle sudden load).
+-   Use **Token Bucket** instead if you want to allow bursts of traffic while maintaining an average rate limit (more common for API rate limiting in modern cloud services).
