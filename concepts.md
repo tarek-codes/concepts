@@ -689,3 +689,41 @@ Consider an API gateway protecting a backend database:
 ### When to Use
 -   Use **Leaky Bucket** when you need to enforce a strict, constant output rate to protect fragile downstream resources (e.g., a legacy database that cannot handle sudden load).
 -   Use **Token Bucket** instead if you want to allow bursts of traffic while maintaining an average rate limit (more common for API rate limiting in modern cloud services).
+
+
+---
+
+## Write-Ahead Logging (WAL)
+
+**Write-Ahead Logging (WAL)** is a standard technique for ensuring data integrity in database systems. The core principle is simple: before any data is modified on the actual storage disk, a record of that intended change (a log entry) is written to a sequential log file.
+
+### How It Works
+1. **Write Log**: The system writes the transaction details to the WAL file.
+2. **Flush Log**: The WAL is flushed to stable storage (disk) to ensure durability.
+3. **Apply Data**: The actual data pages are modified in memory and eventually flushed to the main data files.
+
+If a crash occurs between steps 2 and 3, the database can recover by replaying the WAL entries upon restart, ensuring no committed transactions are lost.
+
+### Practical Example: PostgreSQL
+PostgreSQL uses WAL extensively. When you execute an `UPDATE` statement:
+1. PostgreSQL writes the change to the `pg_wal` directory.
+2. Only after the WAL is safely on disk does it consider the transaction "committed" from a durability perspective.
+3. The actual heap page update happens asynchronously.
+
+### Why It Matters
+- **Performance**: Sequential writes to the WAL are much faster than random writes to scattered data pages.
+- **Crash Safety**: Guarantees durability (the 'D' in ACID) even if the system fails unexpectedly.
+- **Replication**: In many modern databases (like PostgreSQL and MySQL), the WAL is the source of truth for streaming replication to standby nodes.
+
+### Pros & Cons
+**Pros**:
+- High write throughput due to sequential I/O.
+- Robust recovery mechanism.
+- Enables Point-in-Time Recovery (PITR).
+
+**Cons**:
+- Adds complexity to the storage engine.
+- Requires careful management of WAL file size to prevent disk exhaustion.
+
+### When to Use
+WAL is fundamental to any relational database (PostgreSQL, MySQL, Oracle) and many NoSQL databases (MongoDB, Redis with AOF) where data consistency and crash recovery are critical.
