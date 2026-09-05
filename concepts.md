@@ -727,3 +727,68 @@ PostgreSQL uses WAL extensively. When you execute an `UPDATE` statement:
 
 ### When to Use
 WAL is fundamental to any relational database (PostgreSQL, MySQL, Oracle) and many NoSQL databases (MongoDB, Redis with AOF) where data consistency and crash recovery are critical.
+
+
+---
+
+## Synchronous vs. Asynchronous Communication
+
+In distributed systems and software architecture, communication between services can be categorized into two primary models based on timing and coupling: Synchronous and Asynchronous.
+
+### Key Differences
+
+**Synchronous Communication**
+*   **Blocking:** The caller waits for the response before proceeding.
+*   **Coupling:** High temporal coupling (services must be available at the same time).
+*   **Protocol:** Typically uses HTTP/REST, gRPC, or RPC.
+*   **Latency:** Directly adds to the total response time of the user's request.
+
+**Asynchronous Communication**
+*   **Non-Blocking:** The caller sends a message and continues processing without waiting for an immediate response.
+*   **Coupling:** Low temporal coupling (services can process at their own pace).
+*   **Protocol:** Typically uses Message Queues (Kafka, RabbitMQ, AWS SQS) or Event Streams.
+*   **Latency:** Decoupled from the user's immediate experience; processing happens in the background.
+
+### Practical Example: E-Commerce Order Processing
+
+**Synchronous Approach (REST API):**
+1.  User clicks "Buy Now."
+2.  Frontend calls `/api/order`.
+3.  Order Service creates the order in DB.
+4.  Order Service calls Inventory Service (HTTP) to deduct stock.
+5.  Order Service calls Payment Service (HTTP) to charge card.
+6.  Payment calls Bank API.
+7.  **User waits** for all these steps to complete before seeing a "Success" page.
+*   *Risk:* If the Inventory Service is slow, the entire user experience freezes.
+
+**Asynchronous Approach (Message Queue):**
+1.  User clicks "Buy Now."
+2.  Frontend calls `/api/order`.
+3.  Order Service creates the order (status: `PENDING`) and immediately returns `202 Accepted` to the user.
+4.  Order Service publishes an `OrderCreated` event to a Kafka topic.
+5.  Inventory Service consumes the event and deducts stock in the background.
+6.  Payment Service consumes the event and charges the card in the background.
+7.  User sees "Order Placed" immediately while processing happens behind the scenes.
+
+### Pros & Cons
+
+| Feature | Synchronous | Asynchronous |
+| :--- | :--- | :--- |
+| **Complexity** | Low (easy to debug linear flow) | High (requires tracing distributed events) |
+| **Reliability** | Low (single point of failure breaks chain) | High (queues buffer messages if services are down) |
+| **Performance** | Slower for user (wait for all deps) | Faster for user (immediate response) |
+| **Consistency** | Immediate consistency | Eventual consistency |
+
+### When to Use Which?
+
+*   **Use Synchronous** when:
+    *   You need an immediate result for the user.
+    *   The operation is simple and fast.
+    *   You require strict ACID transactions across services (though this is rare in microservices).
+    *   Example: Loading user profile, retrieving product details.
+
+*   **Use Asynchronous** when:
+    *   The operation is time-consuming (sending emails, generating PDFs, video processing).
+    *   You need to decouple services for scalability.
+    *   You can tolerate eventual consistency.
+    *   Example: Order processing, data synchronization, audit logging.
