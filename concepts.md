@@ -792,3 +792,34 @@ In distributed systems and software architecture, communication between services
     *   You need to decouple services for scalability.
     *   You can tolerate eventual consistency.
     *   Example: Order processing, data synchronization, audit logging.
+
+
+---
+
+## Content-Addressable Storage (CAS)
+
+Content-Addressable Storage (CAS) is a data storage method where data is identified and retrieved by its content rather than its physical location or filename. Instead of using a path like `/home/user/file.txt`, CAS calculates a unique cryptographic hash (e.g., SHA-256) of the file's contents. This hash serves as the unique identifier (key) for the object.
+
+**How It Works**
+1. **Ingestion**: When a file is stored, the system computes its hash.
+2. **Storage**: The file is stored in a bucket or directory structure derived from the hash (e.g., `sha256/ab/cd/abcdef123...`).
+3. **Retrieval**: To access the file, the client computes the same hash and requests the object using that hash.
+
+**Key Benefits**
+- **Deduplication**: If two files have identical content, they produce the same hash. The system stores only one physical copy, saving significant space.
+- **Immutability**: Since the address is derived from content, you cannot modify the data without changing its address. This ensures data integrity.
+- **Security**: You can verify that the retrieved data matches the original by checking the hash.
+
+**Practical Example: Git**
+Git is a prime example of CAS. Every commit, tree, and blob in a Git repository is stored as an object addressed by its SHA-1 hash.
+- If you copy a file in your repository, Git doesn't store the file twice; it just creates a new reference to the existing content object.
+- This allows Git to efficiently track changes and manage distributed version control.
+
+**When to Use**
+- **Version Control Systems**: Like Git, where deduplication and integrity are critical.
+- **CDNs and Object Storage**: Systems like IPFS (InterPlanetary File System) or certain cloud storage backends use CAS to ensure data is unchanged and to optimize caching.
+- **Backup Solutions**: To save storage costs by eliminating redundant backups of unchanged files.
+
+**Pros & Cons**
+- **Pros**: Efficient storage (deduplication), inherent integrity verification, location independence.
+- **Cons**: Not suitable for frequently updated small data (appending data requires re-hashing the entire object), complex implementation for mutable data scenarios.
