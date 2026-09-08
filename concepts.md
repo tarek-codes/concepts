@@ -823,3 +823,59 @@ Git is a prime example of CAS. Every commit, tree, and blob in a Git repository 
 **Pros & Cons**
 - **Pros**: Efficient storage (deduplication), inherent integrity verification, location independence.
 - **Cons**: Not suitable for frequently updated small data (appending data requires re-hashing the entire object), complex implementation for mutable data scenarios.
+
+
+---
+
+## Sharding vs. Partitioning in Database Scaling
+
+**Overview**
+While often used interchangeably, **Partitioning** and **Sharding** represent different levels of database scaling strategies. Understanding the distinction is crucial for system design interviews and architectural decisions.
+
+**Partitioning (Horizontal Scaling within a Node)**
+Partitioning divides a single database table into smaller, more manageable pieces (partitions) while keeping them within the same database instance. The application still views it as one table.
+*   **Mechanism:** Data is split based on a key (e.g., hash, range, or list).
+*   **Scope:** Internal to the database engine.
+*   **Goal:** Improve query performance by reducing the amount of data scanned for specific queries and managing large tables that exceed memory limits.
+
+**Sharding (Horizontal Scaling across Nodes)**
+Sharding is a distributed database technique where data is split across multiple distinct database instances (servers). Each instance holds a subset of the total data.
+*   **Mechanism:** Data is distributed across different physical servers.
+*   **Scope:** External, involving multiple servers and often a routing layer (proxy).
+*   **Goal:** Scale write throughput and storage capacity beyond the limits of a single machine.
+
+**Key Differences**
+
+| Feature | Partitioning | Sharding |
+| :--- | :--- | :--- |
+| **Location** | Single server/instance | Multiple servers/instances |
+| **Complexity** | Low (managed by DB engine) | High (requires routing, consistency management) |
+| **Scalability** | Limited by single node hardware | Near-linear scaling by adding nodes |
+| **Failure Impact** | Single point of failure remains | Fault isolation per shard |
+
+**Practical Example: E-Commerce Platform**
+
+1.  **Partitioning:** You have a massive `Orders` table with 100 million rows. You partition it by `order_date` (e.g., one partition per year). Queries for "2023 orders" only scan the 2023 partition, speeding up reads. However, all data still lives on one powerful server.
+2.  **Sharding:** Your platform grows to 1 billion users. One server can no longer handle the write load. You shard the `Users` table by `user_id % 4`. Now, user data is spread across 4 different servers. Server 1 handles users 0, 4, 8... Server 2 handles 1, 5, 9...
+
+**When to Use Which?**
+
+*   **Use Partitioning when:**
+    *   You need to optimize query performance for large tables.
+    *   You need to manage data lifecycle (e.g., drop old partitions easily).
+    *   You haven't yet outgrown the hardware capacity of a single node.
+
+*   **Use Sharding when:**
+    *   You have hit the limits of a single server's CPU, RAM, or I/O.
+    *   You need to scale write throughput horizontally.
+    *   You require geographic distribution for latency reduction.
+
+**Pros & Cons**
+
+*   **Partitioning:**
+    *   *Pros:* Easy to implement, no application code changes, transparent to SQL.
+    *   *Cons:* Does not solve hardware limits, single point of failure.
+
+*   **Sharding:**
+    *   *Pros:* True horizontal scaling, fault isolation.
+    *   *Cons:* Complex joins across shards, data rebalancing is difficult, requires careful shard key selection.
