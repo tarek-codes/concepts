@@ -879,3 +879,38 @@ Sharding is a distributed database technique where data is split across multiple
 *   **Sharding:**
     *   *Pros:* True horizontal scaling, fault isolation.
     *   *Cons:* Complex joins across shards, data rebalancing is difficult, requires careful shard key selection.
+
+
+---
+
+## Monotonic Clocks (Logical Clocks)
+
+In distributed systems, physical clocks are unreliable due to clock drift and synchronization issues. Monotonic clocks (or logical clocks) solve this by focusing on **causal ordering** rather than absolute time. They ensure that if Event A causes Event B, then the timestamp of A is always less than the timestamp of B, regardless of which physical machine they occurred on.
+
+### How It Works
+The most common implementation is the **Lamport Timestamp**.
+1. Each node maintains a logical counter.
+2. On every local event, the counter increments.
+3. When sending a message, the sender attaches its current timestamp.
+4. When receiving a message, the receiver sets its timestamp to `max(local_time, received_time) + 1`.
+
+This creates a total ordering of events that respects causality.
+
+### Practical Example: Distributed Chat Application
+Imagine User A sends a message to User B.
+- **Physical Clocks:** Due to drift, User B's "received" timestamp might appear earlier than User A's "sent" timestamp, confusing the UI.
+- **Monotonic Clocks:** The message carries a logical timestamp. Even if physical time is skewed, the system guarantees that the "received" event logically follows the "sent" event, ensuring messages appear in the correct causal order for all users.
+
+### Pros & Cons
+- **Pros:**
+  - Guarantees causal consistency.
+  - No need for expensive NTP synchronization.
+  - Deterministic ordering for debugging and logging.
+- **Cons:**
+  - Does not reflect real-world time (e.g., a timestamp of 100 doesn't mean 100 ms have passed).
+  - Can grow large in high-throughput systems without careful management.
+
+### When to Use
+- Ordering events in distributed logs (e.g., Kafka, Elasticsearch).
+- Implementing version vectors for conflict resolution in CRDTs (Conflict-Free Replicated Data Types).
+- Any system where "what happened first" matters more than "when it happened."
