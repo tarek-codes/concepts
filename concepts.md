@@ -914,3 +914,46 @@ Imagine User A sends a message to User B.
 - Ordering events in distributed logs (e.g., Kafka, Elasticsearch).
 - Implementing version vectors for conflict resolution in CRDTs (Conflict-Free Replicated Data Types).
 - Any system where "what happened first" matters more than "when it happened."
+
+
+---
+
+## CQRS (Command Query Responsibility Segregation)
+
+**What is CQRS?**
+
+Command Query Responsibility Segregation (CQRS) is an architectural pattern that separates read operations (Queries) from write operations (Commands) on a data store. Instead of using a single data model for both reads and writes, CQRS uses two different models optimized for their specific tasks.
+
+**How It Works**
+
+1.  **Commands (Writes):** Handle state changes. They are processed by the "Command Side," which validates business rules, updates the state, and may publish domain events.
+2.  **Queries (Reads):** Handle data retrieval. They are processed by the "Query Side," which reads from a potentially different data store optimized for fast retrieval (e.g., a denormalized view or cache).
+
+**Why Use CQRS?**
+
+*   **Scalability:** You can scale read and write operations independently. Since reads often outnumber writes, you can dedicate more resources to the read side.
+*   **Optimization:** The write model can be normalized for integrity, while the read model can be denormalized for speed.
+*   **Security & Validation:** Command handlers can enforce strict security and validation logic without complicating the read path.
+
+**Practical Example: E-Commerce Inventory**
+
+*   **Command Side:** When a user places an order, a `PlaceOrderCommand` is sent. The system checks inventory, deducts stock, and saves the order. This process is transactional and ensures consistency.
+*   **Query Side:** When a user views product details, the system queries a read-optimized database (like Elasticsearch or a materialized view) that contains pre-aggregated product info. This avoids locking rows in the primary database, ensuring fast page loads even during high traffic.
+
+**Pros & Cons**
+
+*   **Pros:**
+    *   Independent scaling of reads/writes.
+    *   Simplified code logic for each side.
+    *   Better performance for complex queries.
+*   **Cons:**
+    *   Increased complexity (eventual consistency between read and write models).
+    *   Higher development and maintenance overhead.
+    *   Requires handling data synchronization (e.g., via event sourcing or messaging).
+
+**When to Use**
+
+*   Complex business domains with heavy read/write asymmetry.
+*   Systems requiring high scalability for reads.
+*   Applications where audit trails and event history are critical (often paired with Event Sourcing).
+*   **Avoid** for simple CRUD applications where the added complexity outweighs the benefits.
